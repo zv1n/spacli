@@ -33,6 +33,16 @@ Overhead,50,2015-01-01,2015-12-31,0
 
 ./spa.py --list
 
+```
+03:07:24 ~$ ./spa.py --list
+Current Charge Codes:
+Code		Hours	Remains		Activate	Expire
+7HH			159.25	111.0		2015-02-01	2015-08-25
+6HH			20.0	0.0			2015-04-01	2015-08-25
+5HH			172.75	172.75		2015-06-01	2015-10-25
+Overhead	50.0	50.0		2015-01-01	2015-12-31
+```
+
 ### List hours from cache
 
 ./spa.py --list-cache
@@ -48,3 +58,9 @@ Overhead,50,2015-01-01,2015-12-31,0
 * Use this only for general codes; if you have a specific task item associated with a charge code, ensure you bill the correct one! *
 
 ./spa.py --hint
+
+```
+03:07:17 ~$ ./spa.py --hint
+Use chargecode(s):
+  7HH	- 111.0 hours remaining.
+```
