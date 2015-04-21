@@ -197,22 +197,26 @@ class SpringAheadAPI:
 
     return None
 
-  def request(self, request):
-    buffer = StringIO()
+  def request(self, request, path):
+    with open(path, 'wb') as handle:
+      c = pycurl.Curl()
 
-    c = pycurl.Curl()
+      url = '%s/%s' % (self.api_url, request)
 
-    url = '%s/%s' % (self.api_url, request)
+      c.setopt(c.URL, url)
 
-    c.setopt(c.URL, url)
+      c.setopt(c.USERPWD, '%s:%s' % (self.user, self.passwd))
+      c.setopt(c.WRITEFUNCTION, handle.write)
+      c.perform()
 
-    c.setopt(c.USERPWD, '%s:%s' % (self.user, self.passwd))
-    c.setopt(c.WRITEDATA, buffer)
-    c.perform()
-    c.close()
+      retcode = c.getinfo(c.HTTP_CODE)
 
-    return buffer.getvalue()
+      if retcode != 200:
+	print "Oops. Spring ahead returned %s" % retcode
+        if retcode == 401:
+          print "Check your company, username, and password in the identity file for correctness."
 
+      c.close()
 
   def update(self):
     if len(self.codes) == 0:
@@ -225,14 +229,12 @@ class SpringAheadAPI:
     print "Request timecard information from %s to %s" % (oldest, latest)
 
     start = int(datetime.now().strftime("%s"))
-    xml = self.request('mytimecard/range/%s/%s' % (oldest, latest))
+    self.request('mytimecard/range/%s/%s' % (oldest, latest),
+                 self.timecard_cache)
     stop = int(datetime.now().strftime("%s"))
 
     duration = stop - start
     print "Time elapsed: %s" % str(timedelta(seconds=duration))
-
-    with open(self.timecard_cache, 'w') as handle: handle.write(xml)
-
 
   def populate_timecards(self):
     with open(self.timecard_cache, 'r') as handle: buff = handle.read()
