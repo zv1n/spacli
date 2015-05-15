@@ -29,6 +29,8 @@ Example file:
 Overhead,50,2015-01-01,2015-12-31,0
 ```
 
+WANT HINTS: 0 or 1 depending on whether you want this code used for hints.  I disable the inclusion of overhead in hints for this example.
+
 ### Updating
 
 ./spa.py --update
@@ -63,8 +65,11 @@ Overhead	50.0	50.0		2015-01-01	2015-12-31
 
 ./spa.py --hint
 
+This will provide the first 2 available charge codes first by hours remaining, then by date.  If one closes out sooner, but has a higher number, it will be shown first.  Otherwise, the lowest number of remaining hours is recommended.
+
 ```
 03:07:17 ~$ ./spa.py --hint
 Use chargecode(s):
   7HH	- 111.0 hours remaining.
+  5HH	- 172.0 hours remaining.
 ```
