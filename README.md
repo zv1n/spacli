@@ -1,5 +1,9 @@
 # Spring Ahead CLI
 
+### Python Dependencies
+
+* pyCurl
+
 ### Identity File
 
 $HOME/.identity
