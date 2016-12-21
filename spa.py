@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -11,16 +11,16 @@ from datetime import date, datetime, timedelta
 
 import xml.dom.minidom
 
-from StringIO import StringIO
+from io import StringIO
 
 def usage(msg = None):
-  if msg is not None: print msg
-  print "usage: spa.py -i ~/.identity [--list|--validate|--hint|--update]"
-  print "  -u --update      Update current hours."
-  print "                   *may take a minute -- SpringAhead's API is slow..."
-  print "  -l --list      List current hours."
-  print "  -h --hint      Give an hourly hint."
-  print "  -v --validate  Validate the current time card against listed."
+  if msg is not None: print(msg)
+  print("usage: spa.py -i ~/.springahead/identity [--list|--validate|--hint|--update]")
+  print("  -u --update      Update current hours.")
+  print("                   *may take a minute -- SpringAhead's API is slow...")
+  print("  -l --list      List current hours.")
+  print("  -h --hint      Give an hourly hint.")
+  print("  -v --validate  Validate the current time card against listed.")
   sys.exit(1)
 
 def timeStamp(method):
@@ -58,7 +58,7 @@ class ChargeCode:
     time = (left.expire - right.expire).total_seconds()
     if time > 0:
       return int(left.hours_remaining - right.hours_remaining)
-    
+
     if time < 0.0:
       return -1
     if time > 0.0:
@@ -93,10 +93,10 @@ class ChargeCode:
 
     if remaining:
       hours_remaining = self.hours_remaining
-      print "%s\t%s\t%s\t%s\t%s" % (self.code, self.hours, hours_remaining,
-        active, expire)
+      print("%s\t%s\t%s\t%s\t%s" % (self.code, self.hours, hours_remaining,
+        active, expire))
     else:
-      print "%s\t%s\t%s\t%s" % (self.code, self.hours, active, expire)
+      print("%s\t%s\t%s\t%s" % (self.code, self.hours, active, expire))
 
 
 class Timecard:
@@ -106,7 +106,7 @@ class Timecard:
 
     self.hours_node = Node(card, 'HoursDay', 'Timecard')
     self.timecard_date_node = Node(card, 'TimecardDate', 'Timecard')
-    self.charge_code_node = Node(card, 'ShortName', 'Project')
+    self.charge_code_node = Node(card, 'Name', 'Project')
 
     self.submit_date_node = Node(card, 'SubmitDate', 'Timecard')
     self.created_date_node = Node(card, 'CreatedDate', 'Timecard')
@@ -160,8 +160,8 @@ class SpringAheadAPI:
 
   def load_identity(self, user_file):
     if not os.path.isfile(user_file):
-      print "User credential file does not exist!"
-      print "Default: $HOME/.identity"
+      print("User credential file does not exist!")
+      print("Default: $HOME/.springahead/identity")
       return
 
     with open(user_file, "r") as handle:
@@ -169,14 +169,14 @@ class SpringAheadAPI:
       creds = cred_data.strip('\n').split(':')
 
       if len(creds) != 2:
-        print "Invalid credential file!"
-        print "It should be of the format 'company\user:password'."
-        print "It should also be 700, so that other users can't access it."
-        print "File: %s" % user_file
+        print("Invalid credential file!")
+        print("It should be in the format 'company\\user:password'.")
+        print("It should also be 700, so that other users can't access it.")
+        print("File: %s" % user_file)
         sys.exit(1)
 
       if os.stat(user_file).st_mode & (S_IRWXG | S_IRWXO):
-        print "!!! Your identity file should be set to mode 700 !!!"
+        print("!!! Your identity file should be set to mode 700 !!!")
         sys.exit(1)
 
       self.user = creds[0]
@@ -184,7 +184,7 @@ class SpringAheadAPI:
 
   def load_codes(self, codes):
     if not os.path.isfile(codes):
-      print "No charge code file is sound!"
+      print("No charge code file is sound!")
       return
 
     self.codes = ChargeCode.load(codes)
@@ -212,21 +212,21 @@ class SpringAheadAPI:
       retcode = c.getinfo(c.HTTP_CODE)
 
       if retcode != 200:
-	print "Oops. Spring ahead returned %s" % retcode
+        print("Oops. Spring ahead returned %s" % retcode)
         if retcode == 401:
-          print "Check your company, username, and password in the identity file for correctness."
+          print("Check your company, username, and password in the identity file for correctness.")
 
       c.close()
 
   def update(self):
     if len(self.codes) == 0:
-      print "No charge codes are loaded!"
+      print("No charge codes are loaded!")
       return
 
     latest = date.today().isoformat()
     oldest = self.codes[0].activate.date().isoformat()
 
-    print "Request timecard information from %s to %s" % (oldest, latest)
+    print("Request timecard information from %s to %s" % (oldest, latest))
 
     start = int(datetime.now().strftime("%s"))
     self.request('mytimecard/range/%s/%s' % (oldest, latest),
@@ -234,7 +234,7 @@ class SpringAheadAPI:
     stop = int(datetime.now().strftime("%s"))
 
     duration = stop - start
-    print "Time elapsed: %s" % str(timedelta(seconds=duration))
+    print("Time elapsed: %s" % str(timedelta(seconds=duration)))
 
   def populate_timecards(self):
     with open(self.timecard_cache, 'r') as handle: buff = handle.read()
@@ -246,37 +246,48 @@ class SpringAheadAPI:
 
     for card in self.timecards_dom:
       tc = Timecard(card)
+      text = None
 
-      # Find the first matching chargecode and use it.
-      text = tc.charge_code_node.text
+      try:
+        # Find the first matching chargecode and use it.
+        text = tc.charge_code_node.text
+      except AttributeError:
+        pass
+
       code = None
 
-      for ca in self.codes:
-        if text.endswith(ca.code):
-          ca.add_timecard(tc)
-          code = ca
-          break
+      if text is not None:
+        for ca in self.codes:
+          if text.endswith(ca.code):
+            ca.add_timecard(tc)
+            code = ca
+            break
 
       if code is None:
-        self.undefined_codes.add(text)
+        if text is None:
+          hours = tc.hours_node.text
+          date = tc.timecard_date_node.text
+          self.undefined_codes.add("Unspecified: %s @ %s" % (hours, date))
+        else:
+          self.undefined_codes.add(text)
 
       self.timecards.append(tc)
 
   def list_codes(self):
     self.populate_timecards()
 
-    print "Current Charge Codes:"
-    print "Code\tHours\tRemains\tActivate\tExpire"
+    print("Current Charge Codes:")
+    print("Code\tHours\tRemains\tActivate\tExpire")
     for code in self.codes: code.print_code(remaining = True)
 
   def list_cached_codes(self):
     self.populate_timecards()
 
-    print "Cached Charge Codes:"
-    print "{0:20}\t{1}".format('Code','Hours Used')
+    print("Cached Charge Codes:")
+    print("{0:20}\t{1}".format('Code','Hours Used'))
     for code in self.codes:
-      print "{0:20}\t{1}".format(code.timecards[0].charge_code_node.text,
-        code.hours_used)
+      print("{0:20}\t{1}".format(code.timecards[0].charge_code_node.text,
+        code.hours_used))
 
   def validate_codes(self):
     self.populate_timecards()
@@ -286,36 +297,36 @@ class SpringAheadAPI:
       if cc.hours_remaining < 0: negs.append(cc)
 
     if len(negs) > 0:
-      print "Invalid charge codes:"
-      print "Charge Code\tRemaining\tActivate\tExpire"
+      print("Invalid charge codes:")
+      print("Charge Code\tRemaining\tActivate\tExpire")
       for cc in negs:
-        print "%s\t\t%s\t\t%s\t%s" % (cc.code, cc.hours_remaining,
-          cc.activate.date().isoformat(), cc.expire.date().isoformat())
+        print("%s\t\t%s\t\t%s\t%s" % (cc.code, cc.hours_remaining,
+          cc.activate.date().isoformat(), cc.expire.date().isoformat()))
     else:
-      print "All timesheet records are valid."
+      print("All timesheet records are valid.")
 
     if len(self.undefined_codes) > 0:
-      print "Undefined Codes:"
+      print("Undefined Codes:")
       for code in self.undefined_codes:
-        print "  %s" % code
+        print("  %s" % code)
 
   def hint_codes(self):
     self.populate_timecards()
 
     if len(self.codes) == 0:
-      print "No charge codes found."
+      print("No charge codes found.")
       return
 
     codes = sorted([c for c in self.codes if c.hint and c.hours_remaining > 0],
       cmp = ChargeCode.sort_codes)
 
-    print "Use chargecode(s):"
-    print "  %s\t- %s hours remaining."  % (codes[0].code,
-      codes[0].hours_remaining)
+    print("Use chargecode(s):")
+    print("  %s\t- %s hours remaining."  % (codes[0].code,
+      codes[0].hours_remaining))
 
     if len(codes) > 1:
-      print "  %s\t- %s hours remaining."  % (codes[1].code,
-        codes[1].hours_remaining)
+      print("  %s\t- %s hours remaining."  % (codes[1].code,
+        codes[1].hours_remaining))
 
 def main(argv):
   if len(argv) == 0:
@@ -347,10 +358,10 @@ def main(argv):
 
 
   if userfile is None:
-    userfile = "%s/.identity" % os.environ['HOME']
+    userfile = "%s/.springahead/identity" % os.environ['HOME']
 
   if codefile is None:
-    codefile = "%s/.codes" % os.environ['HOME']
+    codefile = "%s/.springahead/codes" % os.environ['HOME']
 
   spa = SpringAheadAPI(userfile, codefile)
 
