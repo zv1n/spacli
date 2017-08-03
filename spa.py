@@ -19,6 +19,7 @@ def usage(msg = None):
   print("  -u --update      Update current hours.")
   print("                   *may take a minute -- SpringAhead's API is slow...")
   print("  -l --list      List current hours.")
+  print("  -d --describe  Dump all descriptions from date to date.")
   print("  -h --hint      Give an hourly hint.")
   print("  -v --validate  Validate the current time card against listed.")
   sys.exit(1)
@@ -29,6 +30,25 @@ def timeStamp(method):
   stop = int(datetime.now().strftime("%s"))
 
   return stop - start
+
+def cmp_to_key(mycmp):
+    'Convert a cmp= function into a key= function'
+    class K:
+        def __init__(self, obj, *args):
+            self.obj = obj
+        def __lt__(self, other):
+            return mycmp(self.obj, other.obj) < 0
+        def __gt__(self, other):
+            return mycmp(self.obj, other.obj) > 0
+        def __eq__(self, other):
+            return mycmp(self.obj, other.obj) == 0
+        def __le__(self, other):
+            return mycmp(self.obj, other.obj) <= 0
+        def __ge__(self, other):
+            return mycmp(self.obj, other.obj) >= 0
+        def __ne__(self, other):
+            return mycmp(self.obj, other.obj) != 0
+    return K
 
 
 # Load/store charge codes.
@@ -111,6 +131,7 @@ class Timecard:
     self.submit_date_node = Node(card, 'SubmitDate', 'Timecard')
     self.created_date_node = Node(card, 'CreatedDate', 'Timecard')
     self.modified_date_node = Node(card, 'ModifiedDate', 'Timecard')
+    self.description_node = Node(card, 'Description', 'Timecard')
 
   def get_chargecode(self):
     return self.charge_code
@@ -204,6 +225,7 @@ class SpringAheadAPI:
       url = '%s/%s' % (self.api_url, request)
 
       c.setopt(c.URL, url)
+      print("Requesting URL: %s\n" % url)
 
       c.setopt(c.USERPWD, '%s:%s' % (self.user, self.passwd))
       c.setopt(c.WRITEFUNCTION, handle.write)
@@ -218,26 +240,58 @@ class SpringAheadAPI:
 
       c.close()
 
-  def update(self):
+  def update(self, start=None, end=None, outfile=None):
     if len(self.codes) == 0:
       print("No charge codes are loaded!")
       return
 
-    latest = date.today().isoformat()
-    oldest = self.codes[0].activate.date().isoformat()
+    if start is None:
+      oldest = self.codes[0].activate.date().isoformat()
+    else:
+      oldest = start
+
+    if end is None:
+      latest = date.today().isoformat()
+    else:
+      latest = end
 
     print("Request timecard information from %s to %s" % (oldest, latest))
 
+    if outfile is None:
+        outfile = self.timecard_cache
+
     start = int(datetime.now().strftime("%s"))
-    self.request('mytimecard/range/%s/%s' % (oldest, latest),
-                 self.timecard_cache)
+    self.request('mytimecard/range/%s/%s' % (oldest, latest), outfile)
     stop = int(datetime.now().strftime("%s"))
 
     duration = stop - start
     print("Time elapsed: %s" % str(timedelta(seconds=duration)))
 
-  def populate_timecards(self):
-    with open(self.timecard_cache, 'r') as handle: buff = handle.read()
+  def describe(self, start, end):
+    if start is not None:
+      self.update(start=start, end=end, outfile="descriptions.xml")
+      self.populate_timecards("descriptions.xml")
+    else:
+      self.populate_timecards()
+
+    for card in self.timecards:
+      text = card.description_node.text
+      if text is None or text == "None":
+        continue
+      print("%s %s,%s,%s,%s,%s"  % (card.first_name_node.text,
+                                    card.last_name_node.text,
+                                    card.charge_code_node.text,
+                                    card.hours_node.text,
+                                    card.timecard_date_node.text,
+                                    text))
+        
+
+
+  def populate_timecards(self, cachefile=None):
+    if cachefile is None:
+        cachefile = self.timecard_cache
+
+    with open(cachefile, 'r') as handle: buff = handle.read()
 
     xxml = xml.dom.minidom.parseString(buff)
     self.timecards_dom = xxml.getElementsByTagName('Timecard')
@@ -318,7 +372,7 @@ class SpringAheadAPI:
       return
 
     codes = sorted([c for c in self.codes if c.hint and c.hours_remaining > 0],
-      cmp = ChargeCode.sort_codes)
+      key = cmp_to_key(ChargeCode.sort_codes))
 
     print("Use chargecode(s):")
     print("  %s\t- %s hours remaining."  % (codes[0].code,
@@ -333,8 +387,9 @@ def main(argv):
     usage()
 
   try:
-    opts, args = getopt.getopt(argv, 'lcvhui?',
-      ['identity=', 'list', 'validate', 'hint', 'update', 'list-cache'])
+    opts, args = getopt.getopt(argv, 'lc:vhui:d:D?',
+      ['identity=', 'describe=', 'Describe', 'list',
+       'validate', 'hint', 'update', 'list-cache'])
   except getopt.GetoptError as err:
     usage(str(err))
 
@@ -383,6 +438,16 @@ def main(argv):
 
     elif o in ('-h', '--hint'):
       spa.hint_codes()
+
+    elif o in ('-d', '--describe'):
+      split = a.split(':')
+      if len(split) == 1:
+        print("Describe must be provided two dates separated by a colon. " +
+              "Use -D to run with timecard dates.")
+      spa.describe(split[0], split[1])
+
+    elif o in ('-D', '--Describe'):
+      spa.describe(None, None)
 
     else:
       usage("No option specified.")
